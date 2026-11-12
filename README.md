@@ -14,3 +14,7 @@ We are also interested in finding customers who are more likely to buy the inves
 
 What makes the customers buy? Tell us which feature we should be focusing more on.
 
+Bonus from mentor:
+
+think about how i can correlate the results to a business metric
+for example revenue 
