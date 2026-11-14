@@ -162,3 +162,80 @@ print(y_test.value_counts())
 
 print("\nTraining Target Percentages:")
 print(y_train.value_counts(normalize=True) * 100)
+
+# ============================================================
+# Initialize XGBoost Model 
+# ============================================================
+
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    max_depth=5,
+    learning_rate=0.05,
+    subsample=0.8,
+    random_state=21,
+    eval_metric='logloss'
+)
+
+# ============================================================
+# Train  Model 
+# ============================================================
+
+# Train XGBoost using the prepared data 
+xgb_model.fit(
+    X_train_prepared, 
+    y_train
+)
+
+# ============================================================
+# Generate Predictions
+# ============================================================
+
+# Use trained model to predict target values 
+# on the unseen test data
+y_pred = xgb_model.predict(X_test_prepared)
+
+# ============================================================
+# Evaluate Model Performance
+# ============================================================
+
+# Calculate CLassification metrics
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, zero_division=0)
+recall = recall_score(y_test, y_pred, zero_division=0)
+f1 = f1_score(y_test, y_pred, zero_division=0)
+
+print("n\Model Performance")
+print(40 * '=')
+print(f"Accuracy:  {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall:    {recall:.4f}")
+print(f"F1 Score:  {f1:.4f}")
+
+# ============================================================
+# Classification Report
+# ============================================================
+
+# Display precision, recall, F1 score, and support
+# for each target class.
+
+print("\nClassification Report:")
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        zero_division=0
+    )
+)
+
+
+# ============================================================
+# Generate Confusion Matrix
+# ============================================================
+
+# Calculate the confusion matrix to examine correct and
+# incorrect predictions for each class.
+
+cm = confusion_matrix(
+    y_test,
+    y_pred
+)
