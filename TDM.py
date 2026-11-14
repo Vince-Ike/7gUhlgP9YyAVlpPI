@@ -119,3 +119,46 @@ preprocessor = ColumnTransformer(
         )
     ]
 )
+
+# ============================================================
+# Prepare Training & Testing Data
+# ============================================================
+
+# Fit processing only on the training set
+# This prevents information from the test set
+# from influencing the preprocesing process and 
+# helps prevent data leakage
+
+X_train_prepared = preprocessor.fit_transform(X_train)
+
+# Applying the already fitted preprocessing to the test data
+X_test_prepared = preprocessor.transform(X_test)
+
+# ============================================================
+# Verify Prepared Data
+# ============================================================
+
+print("\nPrepared Training Shape:")
+print(X_train_prepared.shape)
+
+print("\nPrepared Testing Shape:")
+print(X_test_prepared.shape)
+
+print("\nTraining Target Shape:")
+print(y_train.shape)
+
+print("\nTesting Target Shape:")
+print(y_test.shape)
+
+# ============================================================
+# Check Target Distribution
+# ============================================================
+
+print("\nTraining Target Distribution:")
+print(y_train.value_counts())
+
+print("\nTesting Target Distribution:")
+print(y_test.value_counts())
+
+print("\nTraining Target Percentages:")
+print(y_train.value_counts(normalize=True) * 100)
