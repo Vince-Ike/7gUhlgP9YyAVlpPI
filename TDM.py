@@ -9,7 +9,11 @@
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split, KFold, cross_val_score
+from sklearn.model_selection import (
+    train_test_split, 
+    StratifiedKFold,
+    cross_validate
+)
 from xgboost import XGBClassifier
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -42,7 +46,13 @@ y = df['y']
 # y needs to be mapped since its in str format [yes, no]
 # used the strip and lower string format incase of inconsistencies
 y = y.str.strip().str.lower().map({'yes': 1, 'no' : 0})
-print(y)
+
+# verify target values and add raise error for missing data
+if y.isnull().any():
+    raise ValueError("Target column contains missing or unmapped values.")
+
+print("n\Target Distribution:")
+print(y.value_counts())
 # ==============================================================
 # Create Training and Testing Splits
 # ==============================================================
@@ -121,49 +131,6 @@ preprocessor = ColumnTransformer(
 )
 
 # ============================================================
-# Prepare Training & Testing Data
-# ============================================================
-
-# Fit processing only on the training set
-# This prevents information from the test set
-# from influencing the preprocesing process and 
-# helps prevent data leakage
-
-X_train_prepared = preprocessor.fit_transform(X_train)
-
-# Applying the already fitted preprocessing to the test data
-X_test_prepared = preprocessor.transform(X_test)
-
-# ============================================================
-# Verify Prepared Data
-# ============================================================
-
-print("\nPrepared Training Shape:")
-print(X_train_prepared.shape)
-
-print("\nPrepared Testing Shape:")
-print(X_test_prepared.shape)
-
-print("\nTraining Target Shape:")
-print(y_train.shape)
-
-print("\nTesting Target Shape:")
-print(y_test.shape)
-
-# ============================================================
-# Check Target Distribution
-# ============================================================
-
-print("\nTraining Target Distribution:")
-print(y_train.value_counts())
-
-print("\nTesting Target Distribution:")
-print(y_test.value_counts())
-
-print("\nTraining Target Percentages:")
-print(y_train.value_counts(normalize=True) * 100)
-
-# ============================================================
 # Initialize XGBoost Model 
 # ============================================================
 
@@ -177,12 +144,76 @@ xgb_model = XGBClassifier(
 )
 
 # ============================================================
+# Combine Preprocessing and XGBoost  Model 
+# ============================================================
+# Combined  the preproceesing and model together because each cross
+# validation fold will independently fit its own imputer and encoder 
+# using that fold's training data
+
+model_pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', xgb_model)
+])
+
+# ============================================================
+# 5-Fold Stratified Cross-Validation
+# ============================================================
+
+# Divides the trainin set into 5 folds, each fold maintains
+# the same target
+# Using stratified cross validation instead of Kfold 
+# because our target is binary no/yes
+
+cv = StratifiedKFold(
+    n_splits=5,
+    shuffle=True,
+    random_state=21
+)
+# ==============================================================
+# Evaluate model using classification metrics
+# ==============================================================
+
+cv_results = cross_validate(
+    model_pipeline,
+    X_train,
+    y_train,
+    cv=cv,
+    scoring={
+       'accuracy': 'accuracy',
+       'precision': 'precision',
+       'recall' : 'recall',
+       'f1' :'f1'
+    },
+    return_train_score=False
+ )
+
+# ==============================================================
+# Display Cross- Validation results
+# ==============================================================
+
+print("\n5-Fold Cross-Validation Results")
+print(50 * "=")
+
+for metric in ['accuracy', 'precision', 'recall', 'f1']:
+    scores = cv_results[f'test_{metric}']
+
+    print(f"\n{metric.capitalize()} Scores: {scores}")
+
+    print(
+        f"Mean {metric.capitalize()}: "
+        f"{scores.mean():.4f}"
+    )
+    print(
+        f"Standard Deviation: "
+        f"{scores.std():.4f}"
+    )
+# ============================================================
 # Train  Model 
 # ============================================================
 
 # Train XGBoost using the prepared data 
-xgb_model.fit(
-    X_train_prepared, 
+model_pipeline.fit(
+    X_train, 
     y_train
 )
 
@@ -192,7 +223,7 @@ xgb_model.fit(
 
 # Use trained model to predict target values 
 # on the unseen test data
-y_pred = xgb_model.predict(X_test_prepared)
+y_pred = model_pipeline.predict(X_test)
 
 # ============================================================
 # Evaluate Model Performance
@@ -205,7 +236,7 @@ recall = recall_score(y_test, y_pred, zero_division=0)
 f1 = f1_score(y_test, y_pred, zero_division=0)
 
 print("n\Model Performance")
-print(40 * '=')
+print(50 * '=')
 print(f"Accuracy:  {accuracy:.4f}")
 print(f"Precision: {precision:.4f}")
 print(f"Recall:    {recall:.4f}")
