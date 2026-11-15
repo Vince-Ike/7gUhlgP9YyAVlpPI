@@ -222,6 +222,7 @@ for weight in weights:
 # ==============================================================
 # Class Weight Results Comparison
 # ==============================================================
+# turned results into a dataframe for a clean comparison display 
 results_df = pd.DataFrame(results)
 
 #using the F1 Score as the determinant of the best weight
@@ -339,3 +340,83 @@ cm = confusion_matrix(
 
 print("\nConfusion Matrix")
 print(cm)
+# ==============================================================
+# Feature Importance
+# ==============================================================
+# Need to Extract final trained Model 
+trained_model = model_pipeline.named_steps['classifier']
+
+# Extract Feature names after preprocessing
+
+feature_names = (
+    model_pipeline
+    .named_steps['preprocessor']
+    .get_feature_names_out()
+    
+)
+
+# Get Feature Importance
+
+feat_importance = trained_model.feature_importances_
+# Create Dataframe
+feat_importance_df = pd.DataFrame({
+    'Feature' : feature_names,
+    'Importance' : feat_importance,
+})
+
+feat_importance_df = feat_importance_df.sort_values(
+    by='Importance',
+    ascending=False
+)
+
+print("\nTopFeature Importance")
+print(50 * '=')
+
+print(feat_importance_df.to_string(index=False))
+
+# ============================================================
+# Group Feature Importance by Original Dataset Features
+# ============================================================
+
+# Create a mapping between encoded features and original features
+
+feature_mapping = {}
+
+for feature in categorical_features:
+
+    prefix = f'categorical__{feature}_'
+
+    for encoded_feature in feature_names:
+
+        if encoded_feature.startswith(prefix):
+
+            feature_mapping[encoded_feature] = feature
+
+
+for feature in numerical_features:
+
+    feature_mapping[f'numerical__{feature}'] = feature
+
+
+# Add original feature names to importance DataFrame
+
+feat_importance_df['Original Feature'] = (
+    feat_importance_df['Feature'].map(feature_mapping)
+)
+
+
+# Combine importance scores by original feature
+
+grouped_importance = (
+    feat_importance_df
+    .groupby('Original Feature')['Importance']
+    .sum()
+    .sort_values(ascending=False)
+    .reset_index()
+)
+
+
+print("\nGrouped Original Feature Importance")
+print(50 * '=')
+
+print(grouped_importance.to_string(index=False))
