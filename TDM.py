@@ -33,8 +33,8 @@ from sklearn.metrics import (
 # ==============================================================
 
 df = pd.read_csv('/Users/vinceike/Desktop/Apziva Projects/term-deposit-marketing-2020.csv')
-print(df.isnull().any())
-print(df.dtypes)
+#print(df.isnull().any())
+#print(df.dtypes)
 
 # ==============================================================
 # Seperate Features and Target
@@ -51,8 +51,8 @@ y = y.str.strip().str.lower().map({'yes': 1, 'no' : 0})
 if y.isnull().any():
     raise ValueError("Target column contains missing or unmapped values.")
 
-print("n\Target Distribution:")
-print(y.value_counts())
+#print("n\Target Distribution:")
+#print(y.value_counts())
 # ==============================================================
 # Create Training and Testing Splits
 # ==============================================================
@@ -73,10 +73,10 @@ categorical_features = X.select_dtypes(include=['object','str']).columns
 
 numerical_features = X.select_dtypes(include=['int64', 'float64']).columns
 
-print("\nCategorical Features")
-print(categorical_features)
-print("\nNumerical Features")
-print(numerical_features)
+#print("\nCategorical Features")
+#print(categorical_features)
+#print("\nNumerical Features")
+#print(numerical_features)
 
 # ==============================================================
 # Define categorical preprocessing pipelines
@@ -131,31 +131,6 @@ preprocessor = ColumnTransformer(
 )
 
 # ============================================================
-# Initialize XGBoost Model 
-# ============================================================
-
-xgb_model = XGBClassifier(
-    n_estimators=200,
-    max_depth=5,
-    learning_rate=0.05,
-    subsample=0.8,
-    random_state=21,
-    eval_metric='logloss'
-)
-
-# ============================================================
-# Combine Preprocessing and XGBoost  Model 
-# ============================================================
-# Combined  the preproceesing and model together because each cross
-# validation fold will independently fit its own imputer and encoder 
-# using that fold's training data
-
-model_pipeline = Pipeline([
-    ('preprocessor', preprocessor),
-    ('classifier', xgb_model)
-])
-
-# ============================================================
 # 5-Fold Stratified Cross-Validation
 # ============================================================
 
@@ -169,11 +144,57 @@ cv = StratifiedKFold(
     shuffle=True,
     random_state=21
 )
-# ==============================================================
-# Evaluate model using classification metrics
-# ==============================================================
 
-cv_results = cross_validate(
+# ============================================================
+# Experiment with Class Weight Adjustments
+# ============================================================
+# Creating the scale parameter to give greater importance to the 
+# minority class with only training data
+
+class_ratio = (
+    y_train.value_counts()[0] /
+    y_train.value_counts()[1]
+)
+
+# Experiment with different weights 
+
+weights = [1,2,3,4,5,7,10, class_ratio]
+
+results = []
+
+for weight in weights:
+    print(f"Testing scale_pos_weight: {weight:.2f}")
+    # ============================================================
+    # Initialize XGBoost Model 
+    # ============================================================
+
+    xgb_model = XGBClassifier(
+    n_estimators=200,
+    max_depth=5,
+    learning_rate=0.05,
+    subsample=0.8,
+    scale_pos_weight = weight,
+    random_state=21,
+    eval_metric='logloss'
+)
+
+    # ============================================================
+    # Combine Preprocessing and XGBoost  Model 
+    # ============================================================
+    # Combined  the preproceesing and model together because each cross
+    # validation fold will independently fit its own imputer and encoder 
+    # using that fold's training data
+
+    model_pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', xgb_model)
+])
+
+    # ==============================================================
+    # Perform Cross-Validation
+    # ==============================================================
+
+    cv_results = cross_validate(
     model_pipeline,
     X_train,
     y_train,
@@ -184,34 +205,79 @@ cv_results = cross_validate(
        'recall' : 'recall',
        'f1' :'f1'
     },
-    return_train_score=False
- )
-
-# ==============================================================
-# Display Cross- Validation results
-# ==============================================================
-
-print("\n5-Fold Cross-Validation Results")
-print(50 * "=")
-
-for metric in ['accuracy', 'precision', 'recall', 'f1']:
-    scores = cv_results[f'test_{metric}']
-
-    print(f"\n{metric.capitalize()} Scores: {scores}")
-
-    print(
-        f"Mean {metric.capitalize()}: "
-        f"{scores.mean():.4f}"
+    return_train_score=False,
+    n_jobs= -1
     )
-    print(
-        f"Standard Deviation: "
-        f"{scores.std():.4f}"
+    # Store metrics at each weight and take the mean of the 5 fold cv metrics 
+    # and the std of the F1 score since it will be the determining 
+    # factor for the best weight
+    results.append({
+        'Weight' : weight,
+        'Accuracy': cv_results['test_accuracy'].mean(),
+        'Precision': cv_results['test_precision'].mean(),
+        'Recall': cv_results['test_recall'].mean(),
+        'F1 Score': cv_results['test_f1'].mean(),
+        'F1 Std': cv_results['test_f1'].std(),
+    })
+# ==============================================================
+# Class Weight Results Comparison
+# ==============================================================
+results_df = pd.DataFrame(results)
+
+#using the F1 Score as the determinant of the best weight
+results_df = results_df.sort_values(
+    by= 'F1 Score',
+    ascending=False
+).reset_index(drop=True)
+
+print("n\Class Weight Comparison")
+print(50 * '=')
+
+print(
+    results_df.to_string(
+    index=False,
+    float_format= lambda x: f'{x:.4f}'
     )
+)
 # ============================================================
-# Train  Model 
+# Select Best Class Weight
 # ============================================================
 
-# Train XGBoost using the prepared data 
+best_weight = results_df.loc[0,'Weight']
+
+print("\n Selected Class Weight")
+print(best_weight)
+
+# ============================================================
+# Initialize Final  Model
+# ==============================================================
+# made a final initialization of the model after looping through different 
+# weights to find the best weight 
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    max_depth=5,
+    learning_rate=0.05,
+    subsample=0.8,
+    scale_pos_weight=best_weight,
+    random_state=21,
+    eval_metric='logloss'
+)
+
+
+# ============================================================
+# Combine Preprocessing and Final Model
+# ==============================================================
+
+model_pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', xgb_model)
+])
+
+# ============================================================
+# Train Final Model 
+# ============================================================
+
+# Train Final Model using the prepared data and the best weight
 model_pipeline.fit(
     X_train, 
     y_train
@@ -270,3 +336,6 @@ cm = confusion_matrix(
     y_test,
     y_pred
 )
+
+print("\nConfusion Matrix")
+print(cm)
