@@ -6,7 +6,7 @@
 # train an XGBoost classifier, and evaluate model
 # performance using classification metrics and 5-fold validation.
 # ============================================================
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import (
@@ -31,8 +31,14 @@ from sklearn.metrics import (
 # ==============================================================
 # Load Dataset
 # ==============================================================
+# Get the directory containing TDM.py
+BASE_DIR = Path(__file__).resolve().parent
 
-df = pd.read_csv('/Users/vinceike/Desktop/Apziva Projects/term-deposit-marketing-2020.csv')
+# Move up one directory to Apziva Projects
+DATA_PATH = BASE_DIR.parent / 'term-deposit-marketing-2020.csv'
+
+# Load dataset
+df = pd.read_csv(DATA_PATH)
 #print(df.isnull().any())
 #print(df.dtypes)
 
