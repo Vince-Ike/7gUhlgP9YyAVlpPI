@@ -54,15 +54,27 @@ if y.isnull().any():
 #print("n\Target Distribution:")
 #print(y.value_counts())
 # ==============================================================
-# Create Training and Testing Splits
+# Create Training, Validation, and Testing Splits
 # ==============================================================
 
-X_train, X_test, y_train, y_test = train_test_split(
+# First seperating the final test set
+
+X_train_full, X_test, y_train_full, y_test = train_test_split(
     X,
     y,
     test_size=0.2,
     random_state=21,
     stratify=y
+)
+
+# Creating the the validation set from the training set 
+
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train_full,
+    y_train_full,
+    test_size=0.20,
+    random_state=21,
+    stratify=y_train_full
 )
 
 # ==============================================================
@@ -278,22 +290,114 @@ model_pipeline = Pipeline([
 # Train Final Model 
 # ============================================================
 
-# Train Final Model using the prepared data and the best weight
+# Train Final Model using training data but leaving out 
+# the validation data
 model_pipeline.fit(
     X_train, 
     y_train
 )
 
 # ============================================================
-# Generate Predictions
+# Predicition Probabilty Threshold Optimization
 # ============================================================
 
-# Use trained model to predict target values 
-# on the unseen test data
-y_pred = model_pipeline.predict(X_test)
+# Generate subscription probabities using the validation data
+# needed since there is a class imbalance in the dataset
+
+y_val_prob = model_pipeline.predict_proba(X_val)[:,1]
+
+# Testing different probablity thresholds
+
+thresholds = np.arange(0.20, 0.71, 0.01)
+
+threshold_results = []
+
+for threshold in thresholds:
+
+    # Convert probabilities into predictions
+    
+    y_val_pred = (y_val_prob >= threshold).astype(int)
+
+    threshold_results.append({
+        'Threshold' : threshold,
+        'Accuracy' : accuracy_score(
+            y_val,
+            y_val_pred
+        ),
+        'Precision' : precision_score(
+            y_val,
+            y_val_pred,
+            zero_division=0
+        ),
+        'Recall' : recall_score(
+            y_val,
+            y_val_pred,
+            zero_division=0
+        ),
+        'F1 Score' : f1_score(
+            y_val,
+            y_val_pred,
+            zero_division=0
+        )
+    })
+
+# Convert threshold results in Datafrane
+
+threshold_df = pd.DataFrame(threshold_results)
+
+# Sort results based on F1 Score
+
+threshold_df = threshold_df.sort_values(
+    by='F1 Score',
+    ascending=False
+).reset_index(drop=True)
+
+print("\nProbabilty Threshold Comparison")
+print(50 * "=")
+
+print(
+    threshold_df.to_string(
+        index=False,
+        float_format= lambda x: f'{x:.4f}'
+    )
+)
+
 
 # ============================================================
-# Evaluate Model Performance
+# Select Best Probability Threshold
+# ============================================================
+
+# Finds the threshold with the highest F1 Score since that is 
+# what the thresholds are sorted by
+best_threshold = threshold_df.loc[0, 'Threshold']
+
+print("\nSelected Probability Thrshold")
+print(best_threshold)
+
+# ============================================================
+# Retrain Final Model using entire training set
+# ============================================================
+# Combine original training and validation data
+
+model_pipeline.fit(
+    X_train_full,
+    y_train_full
+)
+
+# ============================================================
+# Generate Final Predicitions Using Selected Threshold
+# ============================================================
+
+# Generate probabilites on unseen test data
+
+y_test_prob = model_pipeline.predict_proba(X_test)[:,1]
+
+# Apply selected probabilty threshold
+
+y_pred = (y_test_prob >= best_threshold).astype(int)
+
+# ============================================================
+# Evaluate Final Model Performance
 # ============================================================
 
 # Calculate CLassification metrics
@@ -302,7 +406,7 @@ precision = precision_score(y_test, y_pred, zero_division=0)
 recall = recall_score(y_test, y_pred, zero_division=0)
 f1 = f1_score(y_test, y_pred, zero_division=0)
 
-print("n\Model Performance")
+print("n\Final Model Performance")
 print(50 * '=')
 print(f"Accuracy:  {accuracy:.4f}")
 print(f"Precision: {precision:.4f}")
