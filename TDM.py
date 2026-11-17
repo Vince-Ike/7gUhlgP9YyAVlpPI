@@ -586,7 +586,7 @@ plt.close()
 # ------------------------------------------------------------
 
 # Retrieve the trained XGBoost classifier
-xgb_model = model_pipeline.steps[-1][1]
+xgb_model = model_pipeline.named_steps['classifier']
 
 # Retrieve feature names after preprocessing
 feature_names = (
