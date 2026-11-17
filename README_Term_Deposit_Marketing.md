@@ -31,6 +31,7 @@ The project therefore evaluates more than accuracy. Precision, recall, and F1 sc
 ## Results at a Glance
 
 | Evaluation | Result |
+|---|---:|
 | Five-fold cross-validation accuracy | **92.69%** |
 | Final test accuracy | **93.23%** |
 | Test precision | **52.46%** |
@@ -163,6 +164,7 @@ The held-out evaluation reports accuracy, precision, recall, F1 score, a classif
 Rows represent actual classes and columns represent predicted classes.
 
 |  | Predicted: No | Predicted: Yes |
+|---|---:|---:|
 | **Actual: No** | 7,063 | 358 |
 | **Actual: Yes** | 184 | 395 |
 
