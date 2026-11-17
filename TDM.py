@@ -6,7 +6,10 @@
 # train an XGBoost classifier, and evaluate model
 # performance using classification metrics and 5-fold validation.
 # ============================================================
+
+import matplotlib
 from pathlib import Path
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import (
@@ -25,7 +28,8 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     classification_report,
-    confusion_matrix
+    confusion_matrix,
+    ConfusionMatrixDisplay
 )
 
 # ==============================================================
@@ -530,3 +534,137 @@ print("\nGrouped Original Feature Importance")
 print(50 * '=')
 
 print(grouped_importance.to_string(index=False))
+
+
+# ============================================================
+# VISUAL RESULTS
+# ============================================================
+
+# Create folder for visualizations
+BASE_DIR = Path(__file__).resolve().parent
+VISUAL_DIR = BASE_DIR / "visuals"
+VISUAL_DIR.mkdir(exist_ok=True)
+
+# ------------------------------------------------------------
+# CONFUSION MATRIX
+# ------------------------------------------------------------
+
+fig, ax = plt.subplots(figsize=(8, 6))
+
+ConfusionMatrixDisplay.from_predictions(
+    y_test,
+    y_pred,
+    display_labels=["No Subscription", "Subscribed"],
+    values_format="d",
+    ax=ax
+)
+
+ax.set_title(
+    "XGBoost Model - Confusion Matrix",
+    fontsize=14,
+    fontweight="bold"
+)
+
+ax.set_xlabel("Predicted Outcome")
+ax.set_ylabel("Actual Outcome")
+
+plt.tight_layout()
+
+# Save confusion matrix
+plt.savefig(
+    VISUAL_DIR / "confusion_matrix.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
+
+
+# ------------------------------------------------------------
+# GROUPED FEATURE IMPORTANCE
+# ------------------------------------------------------------
+
+# Retrieve the trained XGBoost classifier
+xgb_model = model_pipeline.steps[-1][1]
+
+# Retrieve feature names after preprocessing
+feature_names = (
+    model_pipeline[:-1].get_feature_names_out()
+)
+
+# Retrieve feature importance scores
+importance_scores = xgb_model.feature_importances_
+
+# Match importance scores to encoded feature names
+importance_df = pd.DataFrame({
+    "Encoded Feature": feature_names,
+    "Importance": importance_scores
+})
+
+# Original feature names from the dataset
+original_features = list(X.columns)
+
+# Map encoded features back to original dataset features
+def get_original_feature(encoded_name):
+
+    cleaned_name = encoded_name.split("__", 1)[-1]
+
+    matches = [
+        feature for feature in original_features
+        if cleaned_name == feature
+        or cleaned_name.startswith(feature + "_")
+    ]
+
+    if matches:
+        return max(matches, key=len)
+
+    return cleaned_name
+
+
+importance_df["Original Feature"] = (
+    importance_df["Encoded Feature"]
+    .apply(get_original_feature)
+)
+
+# Aggregate one-hot encoded features
+grouped_importance = (
+    importance_df.groupby("Original Feature")["Importance"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+# Select the top 10 original features
+top_features = grouped_importance.head(10).sort_values()
+
+# Create feature importance visualization
+fig, ax = plt.subplots(figsize=(10, 7))
+
+top_features.plot(
+    kind="barh",
+    ax=ax
+)
+
+ax.set_title(
+    "Top 10 Features Influencing Term Deposit Predictions",
+    fontsize=14,
+    fontweight="bold"
+)
+
+ax.set_xlabel("Relative Feature Importance")
+ax.set_ylabel("Original Dataset Feature")
+
+plt.tight_layout()
+
+# Save feature importance chart
+plt.savefig(
+    VISUAL_DIR / "feature_importance.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
+
+print("\nVisualizations successfully saved!")
+print(f"Saved to: {VISUAL_DIR}")
