@@ -668,3 +668,69 @@ plt.close()
 
 print("\nVisualizations successfully saved!")
 print(f"Saved to: {VISUAL_DIR}")
+
+# ============================================================
+# CUSTOMER YES PROBABILITY CURVE
+# ============================================================
+# Purpose:
+# Show how the predicted probability of a customer saying
+# YES declines as additional customers are contacted.
+# ============================================================
+
+# Sort predicted YES probabilities from highest to lowest
+sorted_probabilities = np.sort(y_test_prob)[::-1]
+
+# Calculate percentage of customers contacted
+percentage_contacted = (
+    np.arange(1, len(sorted_probabilities) + 1) /
+    len(sorted_probabilities)
+) * 100
+
+# Convert probabilities to percentages
+yes_probability = sorted_probabilities * 100
+
+# Create probability curve
+fig, ax = plt.subplots(figsize=(10, 6))
+
+ax.plot(
+    percentage_contacted,
+    yes_probability,
+    linewidth=2,
+    label='Predicted YES Probability'
+)
+
+# Mark the 7.25% contact point
+ax.axvline(
+    x=7.25,
+    color='red',
+    linestyle='--',
+    linewidth=1.5,
+    label='7.25% Customers Contacted'
+)
+
+ax.set_title(
+    'Customer YES Probability vs. Percentage Contacted',
+    fontsize=14,
+    fontweight='bold'
+)
+
+ax.set_xlabel('Percentage of Customers Contacted (%)')
+ax.set_ylabel('Predicted Probability of Saying YES (%)')
+
+ax.set_xlim(0, 100)
+ax.set_ylim(0, 100)
+
+ax.grid(alpha=0.3)
+ax.legend()
+
+plt.tight_layout()
+
+# Save visualization
+plt.savefig(
+    VISUAL_DIR / "customer_yes_probability_curve.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
