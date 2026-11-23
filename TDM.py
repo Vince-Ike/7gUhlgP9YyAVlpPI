@@ -670,52 +670,99 @@ print("\nVisualizations successfully saved!")
 print(f"Saved to: {VISUAL_DIR}")
 
 # ============================================================
-# CUSTOMER YES PROBABILITY CURVE
+
 # ============================================================
-# Purpose:
-# Show how the predicted probability of a customer saying
-# YES declines as additional customers are contacted.
+# RANKED CUSTOMER SUBSCRIPTION RESPONSE ANALYSIS
 # ============================================================
 
-# Sort predicted YES probabilities from highest to lowest
-sorted_probabilities = np.sort(y_test_prob)[::-1]
+# Combine actual outcomes and predicted probabilities
+response_df = pd.DataFrame({
+    'Actual': np.asarray(y_test),
+    'Predicted Probability': np.asarray(y_test_prob)
+})
 
-# Calculate percentage of customers contacted
-percentage_contacted = (
-    np.arange(1, len(sorted_probabilities) + 1) /
-    len(sorted_probabilities)
-) * 100
+# Rank customers from highest to lowest predicted YES probability
+response_df = response_df.sort_values(
+    by='Predicted Probability',
+    ascending=False
+).reset_index(drop=True)
 
-# Convert probabilities to percentages
-yes_probability = sorted_probabilities * 100
+# Divide ranked customers into 20 equal-sized groups (5% each)
+response_df['Customer Segment'] = pd.qcut(
+    np.arange(len(response_df)),
+    q=20,
+    labels=False
+)
 
-# Create probability curve
+# Calculate actual and predicted response rates per segment
+segment_results = (
+    response_df.groupby('Customer Segment')
+    .agg(
+        Actual_Response_Rate=('Actual', 'mean'),
+        Predicted_Response_Probability=(
+            'Predicted Probability', 'mean'
+        )
+    )
+    .reset_index()
+)
+
+# Order segments from highest to lowest customer ranking
+segment_results = segment_results.sort_values(
+    'Customer Segment',
+    ascending=True
+)
+
+# Calculate cumulative percentage of customers contacted
+segment_results['Percentage Contacted'] = (
+    np.arange(1, len(segment_results) + 1) * 5
+)
+
+# Convert response rates to percentages
+segment_results['Actual_Response_Rate'] *= 100
+segment_results['Predicted_Response_Probability'] *= 100
+
+# Overall actual response rate
+overall_response_rate = response_df['Actual'].mean() * 100
+
+# ============================================================
+# PLOT CUSTOMER RESPONSE PROBABILITY
+# ============================================================
+
 fig, ax = plt.subplots(figsize=(10, 6))
 
 ax.plot(
-    percentage_contacted,
-    yes_probability,
+    segment_results['Percentage Contacted'],
+    segment_results['Actual_Response_Rate'],
+    marker='o',
     linewidth=2,
-    label='Predicted YES Probability'
+    label='Actual YES Response Rate'
 )
 
-# Mark the 7.25% contact point
-ax.axvline(
-    x=7.25,
-    color='red',
+ax.plot(
+    segment_results['Percentage Contacted'],
+    segment_results['Predicted_Response_Probability'],
     linestyle='--',
+    marker='s',
     linewidth=1.5,
-    label='7.25% Customers Contacted'
+    label='Average Predicted YES Probability'
+)
+
+# Overall response rate baseline
+ax.axhline(
+    y=overall_response_rate,
+    linestyle=':',
+    linewidth=1.5,
+    label='Overall YES Response Rate'
 )
 
 ax.set_title(
-    'Customer YES Probability vs. Percentage Contacted',
+    'Customer Subscription Response Rate by Contact Segment',
     fontsize=14,
     fontweight='bold'
 )
 
-ax.set_xlabel('Percentage of Customers Contacted (%)')
-ax.set_ylabel('Predicted Probability of Saying YES (%)')
+ax.set_xlabel('Cumulative Percentage of Customers Contacted (%)')
+ax.set_ylabel('Probability of Customer Saying YES (%)')
 
 ax.set_xlim(0, 100)
 ax.set_ylim(0, 100)
@@ -725,7 +772,6 @@ ax.legend()
 
 plt.tight_layout()
 
-# Save visualization
 plt.savefig(
     VISUAL_DIR / "customer_yes_probability_curve.png",
     dpi=300,
